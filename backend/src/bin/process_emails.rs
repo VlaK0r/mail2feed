@@ -1,5 +1,6 @@
 use dotenvy::dotenv;
-use mail2feed_backend::db::{create_pool, establish_connection, operations::ImapAccountOps};
+use mail2feed_backend::db::connection::create_pool;
+use mail2feed_backend::db::operations_generic::ImapAccountOpsGeneric;
 use mail2feed_backend::imap::processor::EmailProcessor;
 use std::env;
 use tracing::{error, info};
@@ -26,8 +27,7 @@ async fn main() -> anyhow::Result<()> {
         create_pool().map_err(|e| anyhow::anyhow!("Failed to create database pool: {}", e))?;
 
     // Get the account
-    let mut conn = establish_connection();
-    let account = ImapAccountOps::get_by_id(&mut conn, account_id)
+    let account = ImapAccountOpsGeneric::get_by_id(&pool, account_id)
         .map_err(|e| anyhow::anyhow!("Account not found: {}", e))?;
 
     info!(
@@ -36,7 +36,7 @@ async fn main() -> anyhow::Result<()> {
     );
 
     // Create processor and process emails
-    let processor = EmailProcessor::new(account, pool);
+    let processor = EmailProcessor::new(account, pool.clone());
 
     match processor.process_account().await {
         Ok(result) => {
