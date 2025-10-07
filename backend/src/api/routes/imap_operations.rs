@@ -163,16 +163,10 @@ pub async fn process_all_accounts(
     State(state): State<AppState>,
 ) -> Result<Json<Vec<ProcessAccountResponse>>, (StatusCode, String)> {
     info!("Processing all IMAP accounts");
-    
-    let mut conn = state.pool
-        .get()
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Database error: {}", e)))?;
-    
+
     // Get all accounts
-    let accounts = ImapAccountOpsGeneric::get_all(&mut conn)
+    let accounts = ImapAccountOpsGeneric::get_all(&state.pool)
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to get accounts: {}", e)))?;
-    
-    drop(conn);
     
     let mut results = Vec::new();
     

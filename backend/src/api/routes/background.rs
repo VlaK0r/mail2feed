@@ -145,16 +145,8 @@ async fn process_account(
     info!("API request to process account: {}", account_id);
 
     // Verify the account exists
-    let mut conn = state.pool.get().map_err(|e| {
-        error!("Failed to get database connection: {}", e);
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            "Database connection failed".to_string(),
-        )
-    })?;
-
-    use crate::db::operations::ImapAccountOps;
-    match ImapAccountOps::get_by_id(&mut conn, &account_id) {
+    use crate::db::operations_generic::ImapAccountOpsGeneric;
+    match ImapAccountOpsGeneric::get_by_id(&state.pool, &account_id) {
         Ok(_account) => {
             // Use the controller to trigger processing
             match state

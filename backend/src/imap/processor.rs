@@ -276,7 +276,9 @@ impl EmailProcessor {
             Some(email.body.clone()),
         );
         
-        FeedItemOpsGeneric::create(&self.pool, &new_item).map(|item| item.id)
+        FeedItemOpsGeneric::create(&self.pool, &new_item).and_then(|item| {
+            item.id.ok_or_else(|| anyhow::anyhow!("Created feed item has no ID"))
+        })
     }
     
     fn truncate_body(&self, body: &str, max_length: usize) -> String {

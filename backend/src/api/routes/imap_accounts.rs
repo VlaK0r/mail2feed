@@ -112,7 +112,7 @@ async fn update_account(
         req.default_move_to_folder,
     );
 
-    match ImapAccountOps::update(&state.pool, &id, &updated_account) {
+    match ImapAccountOpsGeneric::update(&state.pool, &id, &updated_account) {
         Ok(account) => Json(account).into_response(),
         Err(e) => (StatusCode::NOT_FOUND,
             Json(ErrorResponse { error: format!("Failed to update account: {}", e) })).into_response(),

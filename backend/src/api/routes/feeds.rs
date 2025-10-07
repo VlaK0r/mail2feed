@@ -75,13 +75,7 @@ pub fn routes() -> Router<AppState> {
 }
 
 async fn list_feeds(State(state): State<AppState>) -> Response {
-    let mut conn = match state.pool.get() {
-        Ok(conn) => conn,
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, 
-            Json(ErrorResponse { error: format!("Database connection error: {}", e) })).into_response(),
-    };
-
-    match FeedOpsGeneric::get_all(&mut conn) {
+    match FeedOpsGeneric::get_all(&state.pool) {
         Ok(feeds) => Json(feeds).into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR,
             Json(ErrorResponse { error: format!("Failed to fetch feeds: {}", e) })).into_response(),
@@ -359,22 +353,39 @@ async fn update_feed_item(
 
 /// Helper function to update feed item metadata
 fn update_feed_item_metadata(
-    conn: &mut diesel::SqliteConnection,
+    pool: &crate::db::connection::DatabasePool,
     item: &crate::db::models::FeedItem
 ) -> anyhow::Result<()> {
     use crate::db::schema::feed_items::dsl::*;
+    use crate::db::connection::DatabasePool;
     use diesel::prelude::*;
-    
+
     let item_id = item.id.as_ref()
         .ok_or_else(|| anyhow::anyhow!("Item has no ID"))?;
-    
-    diesel::update(feed_items.filter(id.eq(item_id)))
-        .set((
-            is_read.eq(&item.is_read),
-            starred.eq(&item.starred),
-        ))
-        .execute(conn)
-        .map_err(|e| anyhow::anyhow!("Failed to update feed item: {}", e))?;
-        
+
+    match pool {
+        DatabasePool::SQLite(sqlite_pool) => {
+            let mut conn = sqlite_pool.get()?;
+            diesel::update(feed_items.filter(id.eq(item_id)))
+                .set((
+                    is_read.eq(&item.is_read),
+                    starred.eq(&item.starred),
+                ))
+                .execute(&mut conn)
+                .map_err(|e| anyhow::anyhow!("Failed to update feed item: {}", e))?;
+        }
+        #[cfg(feature = "postgres")]
+        DatabasePool::PostgreSQL(pg_pool) => {
+            let mut conn = pg_pool.get()?;
+            diesel::update(feed_items.filter(id.eq(item_id)))
+                .set((
+                    is_read.eq(&item.is_read),
+                    starred.eq(&item.starred),
+                ))
+                .execute(&mut conn)
+                .map_err(|e| anyhow::anyhow!("Failed to update feed item: {}", e))?;
+        }
+    }
+
     Ok(())
 }

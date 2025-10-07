@@ -44,8 +44,16 @@ spec:
                   name: {{ include "mail2feed.databaseSecretName" . }}
                   key: connection-string
             {{- end }}
+            - name: SERVER_HOST
+              value: "0.0.0.0"
+            - name: SERVER_PORT
+              value: "3001"
             - name: RUST_LOG
               value: {{ .Values.backend.env.RUST_LOG }}
+            {{- if .Values.backend.env.RUST_BACKTRACE }}
+            - name: RUST_BACKTRACE
+              value: {{ .Values.backend.env.RUST_BACKTRACE | quote }}
+            {{- end }}
           livenessProbe:
             {{- toYaml .Values.backend.livenessProbe | nindent 12 }}
           readinessProbe:

@@ -59,13 +59,7 @@ pub fn routes() -> Router<AppState> {
 }
 
 async fn list_rules(State(state): State<AppState>) -> Response {
-    let mut conn = match state.pool.get() {
-        Ok(conn) => conn,
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR, 
-            Json(ErrorResponse { error: format!("Database connection error: {}", e) })).into_response(),
-    };
-
-    match EmailRuleOpsGeneric::get_all(&mut conn) {
+    match EmailRuleOpsGeneric::get_all(&state.pool) {
         Ok(rules) => Json(rules).into_response(),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR,
             Json(ErrorResponse { error: format!("Failed to fetch rules: {}", e) })).into_response(),
