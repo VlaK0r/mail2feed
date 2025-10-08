@@ -317,9 +317,9 @@ impl FeedOpsGeneric {
                 crate::db::operations::FeedOps::update(&mut conn, feed_id, updated_feed)
             }
             #[cfg(feature = "postgres")]
-            DatabasePool::PostgreSQL(_pg_pool) => {
-                // Type mismatch between NewFeed and UpdateFeed
-                Err(anyhow::anyhow!("PostgreSQL feed update not yet implemented"))
+            DatabasePool::PostgreSQL(pg_pool) => {
+                let mut conn = pg_pool.get()?;
+                crate::db::operations_pg::update_feed(&mut conn, feed_id, updated_feed)
             }
         }
     }
