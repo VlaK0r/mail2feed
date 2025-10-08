@@ -69,9 +69,7 @@ impl ImapAccountOpsGeneric {
             #[cfg(feature = "postgres")]
             DatabasePool::PostgreSQL(pg_pool) => {
                 let mut conn = pg_pool.get()?;
-                // Need to create UpdateImapAccount from NewImapAccount - this is a type mismatch we'll address
-                // For now, return an error indicating PostgreSQL update is not yet implemented
-                Err(anyhow::anyhow!("PostgreSQL IMAP account update not yet implemented"))
+                crate::db::operations_pg::update_imap_account(&mut conn, account_id, updated_account)
             }
         }
     }
@@ -193,9 +191,9 @@ impl EmailRuleOpsGeneric {
                 crate::db::operations::EmailRuleOps::update(&mut conn, rule_id, updated_rule)
             }
             #[cfg(feature = "postgres")]
-            DatabasePool::PostgreSQL(_pg_pool) => {
-                // Type mismatch between NewEmailRule and UpdateEmailRule
-                Err(anyhow::anyhow!("PostgreSQL email rule update not yet implemented"))
+            DatabasePool::PostgreSQL(pg_pool) => {
+                let mut conn = pg_pool.get()?;
+                crate::db::operations_pg::update_email_rule(&mut conn, rule_id, updated_rule)
             }
         }
     }
