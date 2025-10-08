@@ -1,13 +1,48 @@
 use axum::{
-    routing::{get, patch}, 
+    routing::{get, patch},
     Router, Json, extract::{State, Path, Query},
     http::StatusCode,
     response::{IntoResponse, Response}
 };
 use serde::{Deserialize, Serialize};
 use crate::api::AppState;
-use crate::db::{operations_generic::{FeedOpsGeneric, FeedItemOpsGeneric}, models::NewFeed};
+use crate::db::{operations_generic::{FeedOpsGeneric, FeedItemOpsGeneric, FeedEmailRuleOpsGeneric}, models::{NewFeed, Feed}};
 use crate::feed::generator::FeedGenerator;
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct FeedResponse {
+    pub id: String,
+    pub title: String,
+    pub description: Option<String>,
+    pub link: Option<String>,
+    pub email_rule_ids: Vec<String>,
+    pub feed_type: String,
+    pub is_active: bool,
+    pub created_at: String,
+    pub updated_at: String,
+    pub max_items: Option<i32>,
+    pub max_age_days: Option<i32>,
+    pub min_items: Option<i32>,
+}
+
+impl FeedResponse {
+    fn from_feed_with_rules(feed: Feed, rule_ids: Vec<String>) -> Self {
+        Self {
+            id: feed.id.unwrap_or_default(),
+            title: feed.title,
+            description: feed.description,
+            link: feed.link,
+            email_rule_ids: rule_ids,
+            feed_type: feed.feed_type,
+            is_active: feed.is_active,
+            created_at: feed.created_at,
+            updated_at: feed.updated_at,
+            max_items: feed.max_items,
+            max_age_days: feed.max_age_days,
+            min_items: feed.min_items,
+        }
+    }
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CreateFeedRequest {
@@ -75,19 +110,29 @@ pub fn routes() -> Router<AppState> {
 }
 
 async fn list_feeds(State(state): State<AppState>) -> Response {
-    match FeedOpsGeneric::get_all(&state.pool) {
-        Ok(feeds) => Json(feeds).into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR,
+    let feeds = match FeedOpsGeneric::get_all(&state.pool) {
+        Ok(f) => f,
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR,
             Json(ErrorResponse { error: format!("Failed to fetch feeds: {}", e) })).into_response(),
-    }
+    };
+
+    // Convert feeds to FeedResponse with rule IDs
+    let feed_responses: Vec<FeedResponse> = feeds.into_iter()
+        .filter_map(|feed| {
+            let feed_id = feed.id.as_ref()?.clone();
+            let rule_ids = FeedEmailRuleOpsGeneric::get_rule_ids_for_feed(&state.pool, &feed_id)
+                .unwrap_or_default();
+            Some(FeedResponse::from_feed_with_rules(feed, rule_ids))
+        })
+        .collect();
+
+    Json(feed_responses).into_response()
 }
 
 async fn create_feed(
     State(state): State<AppState>,
     Json(req): Json<CreateFeedRequest>
 ) -> Response {
-    use crate::db::operations_generic::FeedEmailRuleOpsGeneric;
-
     let new_feed = NewFeed::with_retention(
         req.title,
         req.description,
@@ -121,24 +166,26 @@ async fn create_feed(
             Json(ErrorResponse { error: format!("Failed to set feed rules: {}", e) })).into_response();
     }
 
-    (StatusCode::CREATED, Json(feed)).into_response()
+    // Return FeedResponse with rule IDs
+    let feed_response = FeedResponse::from_feed_with_rules(feed, req.email_rule_ids);
+    (StatusCode::CREATED, Json(feed_response)).into_response()
 }
 
 async fn get_feed(
     State(state): State<AppState>,
     Path(id): Path<String>
 ) -> Response {
-    let mut conn = match state.pool.get() {
-        Ok(conn) => conn,
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse { error: format!("Database connection error: {}", e) })).into_response(),
+    let feed = match FeedOpsGeneric::get_by_id(&state.pool, &id) {
+        Ok(f) => f,
+        Err(e) => return (StatusCode::NOT_FOUND,
+            Json(ErrorResponse { error: format!("Feed not found: {}", e) })).into_response(),
     };
 
-    match FeedOpsGeneric::get_by_id(&state.pool, &id) {
-        Ok(feed) => Json(feed).into_response(),
-        Err(e) => (StatusCode::NOT_FOUND,
-            Json(ErrorResponse { error: format!("Feed not found: {}", e) })).into_response(),
-    }
+    let rule_ids = FeedEmailRuleOpsGeneric::get_rule_ids_for_feed(&state.pool, &id)
+        .unwrap_or_default();
+
+    let feed_response = FeedResponse::from_feed_with_rules(feed, rule_ids);
+    Json(feed_response).into_response()
 }
 
 async fn update_feed(
@@ -146,8 +193,6 @@ async fn update_feed(
     Path(id): Path<String>,
     Json(req): Json<UpdateFeedRequest>
 ) -> Response {
-    use crate::db::operations_generic::FeedEmailRuleOpsGeneric;
-
     let updated_feed = NewFeed::with_retention(
         req.title,
         req.description,
@@ -172,7 +217,9 @@ async fn update_feed(
             Json(ErrorResponse { error: format!("Failed to set feed rules: {}", e) })).into_response();
     }
 
-    Json(feed).into_response()
+    // Return FeedResponse with updated rule IDs
+    let feed_response = FeedResponse::from_feed_with_rules(feed, req.email_rule_ids);
+    Json(feed_response).into_response()
 }
 
 async fn delete_feed(

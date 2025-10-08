@@ -519,4 +519,14 @@ impl FeedEmailRuleOpsGeneric {
             }
         }
     }
+
+    pub fn get_rule_ids_for_feed(
+        pool: &DatabasePool,
+        feed_id: &str,
+    ) -> Result<Vec<String>> {
+        let rules = Self::get_rules_by_feed(pool, feed_id)?;
+        Ok(rules.into_iter()
+            .filter_map(|rule| rule.id)
+            .collect())
+    }
 }
