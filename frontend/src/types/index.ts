@@ -74,7 +74,7 @@ export interface Feed {
   title: string
   description?: string
   link?: string
-  email_rule_id: string
+  email_rule_ids: string[]
   feed_type: 'rss' | 'atom'
   is_active: boolean
   created_at: string
@@ -88,7 +88,7 @@ export interface CreateFeedRequest {
   title: string
   description?: string
   link?: string
-  email_rule_id: string
+  email_rule_ids: string[]
   feed_type: string
   is_active: boolean
   max_items?: number

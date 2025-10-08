@@ -154,8 +154,12 @@ impl FeedOps {
     }
 
     pub fn get_by_rule_id(conn: &mut SqliteConnection, rule_id: &str) -> Result<Vec<Feed>> {
-        feeds::table
-            .filter(feeds::email_rule_id.eq(rule_id))
+        use crate::db::schema::feed_email_rules;
+
+        feed_email_rules::table
+            .filter(feed_email_rules::email_rule_id.eq(rule_id))
+            .inner_join(feeds::table.on(feed_email_rules::feed_id.eq(feeds::id.assume_not_null())))
+            .select(Feed::as_select())
             .load(conn)
             .map_err(|e| anyhow::anyhow!("Failed to load feeds for rule {}: {}", rule_id, e))
     }
@@ -166,14 +170,16 @@ impl FeedOps {
                 feeds::title.eq(&updated_feed.title),
                 feeds::description.eq(&updated_feed.description),
                 feeds::link.eq(&updated_feed.link),
-                feeds::email_rule_id.eq(&updated_feed.email_rule_id),
                 feeds::feed_type.eq(&updated_feed.feed_type),
                 feeds::is_active.eq(updated_feed.is_active),
                 feeds::updated_at.eq(&updated_feed.updated_at),
+                feeds::max_items.eq(updated_feed.max_items),
+                feeds::max_age_days.eq(updated_feed.max_age_days),
+                feeds::min_items.eq(updated_feed.min_items),
             ))
             .execute(conn)
             .map_err(|e| anyhow::anyhow!("Failed to update feed {}: {}", feed_id, e))?;
-        
+
         Self::get_by_id(conn, feed_id)
     }
 
@@ -256,6 +262,72 @@ impl FeedItemOps {
             .execute(conn)
             .map_err(|e| anyhow::anyhow!("Failed to delete feed item {}: {}", item_id, e))?;
         Ok(())
+    }
+}
+
+pub struct FeedEmailRuleOps;
+
+impl FeedEmailRuleOps {
+    pub fn create(conn: &mut SqliteConnection, new_relation: &NewFeedEmailRule) -> Result<FeedEmailRule> {
+        use crate::db::schema::feed_email_rules;
+
+        diesel::insert_into(feed_email_rules::table)
+            .values(new_relation)
+            .execute(conn)
+            .map_err(|e| anyhow::anyhow!("Failed to create feed-rule relation: {}", e))?;
+
+        feed_email_rules::table
+            .filter(feed_email_rules::feed_id.eq(&new_relation.feed_id))
+            .filter(feed_email_rules::email_rule_id.eq(&new_relation.email_rule_id))
+            .first(conn)
+            .map_err(|e| anyhow::anyhow!("Failed to find created feed-rule relation: {}", e))
+    }
+
+    pub fn get_rules_by_feed(conn: &mut SqliteConnection, feed_id: &str) -> Result<Vec<EmailRule>> {
+        use crate::db::schema::feed_email_rules;
+
+        feed_email_rules::table
+            .filter(feed_email_rules::feed_id.eq(feed_id))
+            .inner_join(email_rules::table.on(feed_email_rules::email_rule_id.eq(email_rules::id.assume_not_null())))
+            .select(EmailRule::as_select())
+            .load(conn)
+            .map_err(|e| anyhow::anyhow!("Failed to load rules for feed {}: {}", feed_id, e))
+    }
+
+    pub fn delete_by_feed(conn: &mut SqliteConnection, feed_id: &str) -> Result<()> {
+        use crate::db::schema::feed_email_rules;
+
+        diesel::delete(feed_email_rules::table.filter(feed_email_rules::feed_id.eq(feed_id)))
+            .execute(conn)
+            .map_err(|e| anyhow::anyhow!("Failed to delete feed-rule relations for feed {}: {}", feed_id, e))?;
+        Ok(())
+    }
+
+    pub fn delete_by_feed_and_rule(conn: &mut SqliteConnection, feed_id: &str, rule_id: &str) -> Result<()> {
+        use crate::db::schema::feed_email_rules;
+
+        diesel::delete(
+            feed_email_rules::table
+                .filter(feed_email_rules::feed_id.eq(feed_id))
+                .filter(feed_email_rules::email_rule_id.eq(rule_id))
+        )
+        .execute(conn)
+        .map_err(|e| anyhow::anyhow!("Failed to delete feed-rule relation: {}", e))?;
+        Ok(())
+    }
+
+    pub fn set_feed_rules(conn: &mut SqliteConnection, feed_id: &str, rule_ids: &[String]) -> Result<Vec<EmailRule>> {
+        // Delete existing rules for this feed
+        Self::delete_by_feed(conn, feed_id)?;
+
+        // Insert new rules
+        for rule_id in rule_ids {
+            let new_relation = NewFeedEmailRule::new(feed_id.to_string(), rule_id.clone());
+            Self::create(conn, &new_relation)?;
+        }
+
+        // Return the updated list of rules
+        Self::get_rules_by_feed(conn, feed_id)
     }
 }
 

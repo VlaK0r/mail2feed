@@ -42,9 +42,20 @@ export default function Feeds() {
     }
   }
 
-  const getRuleName = (ruleId: string) => {
-    const rule = rules.find(r => r.id === ruleId)
-    return rule ? rule.name : 'Unknown Rule'
+  const getRuleNames = (ruleIds: string[]) => {
+    if (!ruleIds || ruleIds.length === 0) return 'No rules'
+
+    const ruleNames = ruleIds
+      .map(id => {
+        const rule = rules.find(r => r.id === id)
+        return rule ? rule.name : 'Unknown'
+      })
+      .filter(name => name !== 'Unknown')
+
+    if (ruleNames.length === 0) return 'Unknown Rules'
+    if (ruleNames.length === 1) return ruleNames[0]
+    if (ruleNames.length === 2) return ruleNames.join(' & ')
+    return `${ruleNames.slice(0, 2).join(', ')} +${ruleNames.length - 2} more`
   }
 
   const copyFeedUrl = async (feedId: string, feedType: 'rss' | 'atom') => {
@@ -170,8 +181,16 @@ export default function Feeds() {
                   </div>
                   <div className="ml-5 w-0 flex-1">
                     <dl>
-                      <dt className="text-sm font-medium text-gray-500 truncate">
-                        {getRuleName(feed.email_rule_id)}
+                      <dt className="text-sm font-medium text-gray-500 truncate flex items-center gap-1">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                        </svg>
+                        {getRuleNames(feed.email_rule_ids)}
+                        {feed.email_rule_ids.length > 1 && (
+                          <span className="ml-1 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
+                            {feed.email_rule_ids.length} rules
+                          </span>
+                        )}
                       </dt>
                       <dd className="text-lg font-medium text-gray-900">{feed.title}</dd>
                     </dl>

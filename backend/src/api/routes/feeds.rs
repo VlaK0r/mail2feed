@@ -14,7 +14,7 @@ pub struct CreateFeedRequest {
     pub title: String,
     pub description: Option<String>,
     pub link: Option<String>,
-    pub email_rule_id: String,
+    pub email_rule_ids: Vec<String>,
     pub feed_type: String,
     pub is_active: bool,
     pub max_items: Option<i32>,
@@ -27,7 +27,7 @@ pub struct UpdateFeedRequest {
     pub title: String,
     pub description: Option<String>,
     pub link: Option<String>,
-    pub email_rule_id: String,
+    pub email_rule_ids: Vec<String>,
     pub feed_type: String,
     pub is_active: bool,
     pub max_items: Option<i32>,
@@ -86,17 +86,12 @@ async fn create_feed(
     State(state): State<AppState>,
     Json(req): Json<CreateFeedRequest>
 ) -> Response {
-    let mut conn = match state.pool.get() {
-        Ok(conn) => conn,
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse { error: format!("Database connection error: {}", e) })).into_response(),
-    };
+    use crate::db::operations_generic::FeedEmailRuleOpsGeneric;
 
     let new_feed = NewFeed::with_retention(
         req.title,
         req.description,
         req.link,
-        req.email_rule_id,
         req.feed_type,
         req.is_active,
         req.max_items,
@@ -104,11 +99,29 @@ async fn create_feed(
         req.min_items,
     );
 
-    match FeedOpsGeneric::create(&state.pool, &new_feed) {
-        Ok(feed) => (StatusCode::CREATED, Json(feed)).into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR,
+    // Create the feed
+    let feed = match FeedOpsGeneric::create(&state.pool, &new_feed) {
+        Ok(f) => f,
+        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR,
             Json(ErrorResponse { error: format!("Failed to create feed: {}", e) })).into_response(),
+    };
+
+    // Get the feed ID
+    let feed_id = match &feed.id {
+        Some(id) => id.clone(),
+        None => return (StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse { error: "Created feed has no ID".to_string() })).into_response(),
+    };
+
+    // Create the feed-rule relationships
+    if let Err(e) = FeedEmailRuleOpsGeneric::set_feed_rules(&state.pool, &feed_id, &req.email_rule_ids) {
+        // If creating relationships fails, delete the feed and return error
+        let _ = FeedOpsGeneric::delete(&state.pool, &feed_id);
+        return (StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse { error: format!("Failed to set feed rules: {}", e) })).into_response();
     }
+
+    (StatusCode::CREATED, Json(feed)).into_response()
 }
 
 async fn get_feed(
@@ -133,17 +146,12 @@ async fn update_feed(
     Path(id): Path<String>,
     Json(req): Json<UpdateFeedRequest>
 ) -> Response {
-    let mut conn = match state.pool.get() {
-        Ok(conn) => conn,
-        Err(e) => return (StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorResponse { error: format!("Database connection error: {}", e) })).into_response(),
-    };
+    use crate::db::operations_generic::FeedEmailRuleOpsGeneric;
 
     let updated_feed = NewFeed::with_retention(
         req.title,
         req.description,
         req.link,
-        req.email_rule_id,
         req.feed_type,
         req.is_active,
         req.max_items,
@@ -151,11 +159,20 @@ async fn update_feed(
         req.min_items,
     );
 
-    match FeedOpsGeneric::update(&state.pool, &id, &updated_feed) {
-        Ok(feed) => Json(feed).into_response(),
-        Err(e) => (StatusCode::NOT_FOUND,
+    // Update the feed
+    let feed = match FeedOpsGeneric::update(&state.pool, &id, &updated_feed) {
+        Ok(f) => f,
+        Err(e) => return (StatusCode::NOT_FOUND,
             Json(ErrorResponse { error: format!("Failed to update feed: {}", e) })).into_response(),
+    };
+
+    // Update the feed-rule relationships
+    if let Err(e) = FeedEmailRuleOpsGeneric::set_feed_rules(&state.pool, &id, &req.email_rule_ids) {
+        return (StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ErrorResponse { error: format!("Failed to set feed rules: {}", e) })).into_response();
     }
+
+    Json(feed).into_response()
 }
 
 async fn delete_feed(

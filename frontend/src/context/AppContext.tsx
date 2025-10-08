@@ -59,10 +59,11 @@ function appReducer(state: AppState, action: AppAction): AppState {
         // Also remove related rules and feeds
         rules: state.rules.filter(rule => rule.imap_account_id !== action.payload),
         feeds: state.feeds.filter(feed => {
-          const ruleExists = state.rules.some(rule => 
-            rule.id === feed.email_rule_id && rule.imap_account_id !== action.payload
-          )
-          return ruleExists
+          // Keep feed if it has at least one rule from a different account
+          return feed.email_rule_ids.some(ruleId => {
+            const rule = state.rules.find(r => r.id === ruleId)
+            return rule && rule.imap_account_id !== action.payload
+          })
         })
       }
     
@@ -84,8 +85,13 @@ function appReducer(state: AppState, action: AppAction): AppState {
       return {
         ...state,
         rules: state.rules.filter(rule => rule.id !== action.payload),
-        // Also remove related feeds
-        feeds: state.feeds.filter(feed => feed.email_rule_id !== action.payload)
+        // Remove feeds that only had this rule, or update feeds to remove this rule
+        feeds: state.feeds
+          .map(feed => ({
+            ...feed,
+            email_rule_ids: feed.email_rule_ids.filter(id => id !== action.payload)
+          }))
+          .filter(feed => feed.email_rule_ids.length > 0) // Remove feeds with no rules left
       }
     
     case 'SET_FEEDS':

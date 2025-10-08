@@ -232,7 +232,6 @@ pub struct Feed {
     pub title: String,
     pub description: Option<String>,
     pub link: Option<String>,
-    pub email_rule_id: String,
     pub feed_type: String,
     pub is_active: bool,
     pub created_at: String,
@@ -249,7 +248,6 @@ pub struct NewFeed {
     pub title: String,
     pub description: Option<String>,
     pub link: Option<String>,
-    pub email_rule_id: String,
     pub feed_type: String,
     pub is_active: bool,
     pub created_at: String,
@@ -264,7 +262,6 @@ impl NewFeed {
         title: String,
         description: Option<String>,
         link: Option<String>,
-        email_rule_id: String,
         feed_type: String,
         is_active: bool,
     ) -> Self {
@@ -274,7 +271,6 @@ impl NewFeed {
             title,
             description,
             link,
-            email_rule_id,
             feed_type,
             is_active,
             created_at: now.to_rfc3339(),
@@ -289,7 +285,6 @@ impl NewFeed {
         title: String,
         description: Option<String>,
         link: Option<String>,
-        email_rule_id: String,
         feed_type: String,
         is_active: bool,
         max_items: Option<i32>,
@@ -302,7 +297,6 @@ impl NewFeed {
             title,
             description,
             link,
-            email_rule_id,
             feed_type,
             is_active,
             created_at: now.to_rfc3339(),
@@ -310,6 +304,35 @@ impl NewFeed {
             max_items: max_items.or(Some(100)),       // Default: keep last 100 items
             max_age_days: max_age_days.or(Some(30)),  // Default: keep items for 30 days
             min_items: min_items.or(Some(10)),        // Default: always keep at least 10 items
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Queryable, Selectable, Associations)]
+#[diesel(belongs_to(Feed, foreign_key = feed_id))]
+#[diesel(belongs_to(EmailRule, foreign_key = email_rule_id))]
+#[diesel(table_name = feed_email_rules)]
+#[diesel(primary_key(feed_id, email_rule_id))]
+pub struct FeedEmailRule {
+    pub feed_id: String,
+    pub email_rule_id: String,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Insertable)]
+#[diesel(table_name = feed_email_rules)]
+pub struct NewFeedEmailRule {
+    pub feed_id: String,
+    pub email_rule_id: String,
+    pub created_at: String,
+}
+
+impl NewFeedEmailRule {
+    pub fn new(feed_id: String, email_rule_id: String) -> Self {
+        Self {
+            feed_id,
+            email_rule_id,
+            created_at: Utc::now().to_rfc3339(),
         }
     }
 }

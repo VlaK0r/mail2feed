@@ -20,7 +20,7 @@ export default function FeedForm({ feed, onSubmit, onCancel }: FeedFormProps) {
     title: feed?.title || '',
     description: feed?.description || '',
     link: feed?.link || '',
-    email_rule_id: feed?.email_rule_id || '',
+    email_rule_ids: feed?.email_rule_ids || [] as string[],
     feed_type: feed?.feed_type || 'rss' as 'rss' | 'atom',
     is_active: feed?.is_active ?? true,
     max_items: feed?.max_items ?? 100,
@@ -33,19 +33,13 @@ export default function FeedForm({ feed, onSubmit, onCancel }: FeedFormProps) {
       try {
         const rulesData = await rulesApi.getAll()
         setRules(rulesData)
-        
-        // If creating a new feed and no rule selected, select the first active rule
-        if (!feed && !formData.email_rule_id && rulesData.length > 0) {
-          const activeRule = rulesData.find(r => r.is_active) || rulesData[0]
-          setFormData(prev => ({ ...prev, email_rule_id: activeRule.id }))
-        }
       } catch (error) {
         setErrors({ rules: 'Failed to load email rules' })
       }
     }
 
     loadRules()
-  }, [feed, formData.email_rule_id])
+  }, [feed])
 
   useEffect(() => {
     if (feed) {
@@ -53,7 +47,7 @@ export default function FeedForm({ feed, onSubmit, onCancel }: FeedFormProps) {
         title: feed.title,
         description: feed.description || '',
         link: feed.link || '',
-        email_rule_id: feed.email_rule_id,
+        email_rule_ids: feed.email_rule_ids || [],
         feed_type: feed.feed_type,
         is_active: feed.is_active,
         max_items: feed.max_items ?? 100,
@@ -84,8 +78,8 @@ export default function FeedForm({ feed, onSubmit, onCancel }: FeedFormProps) {
       }
     }
     
-    if (!formData.email_rule_id) {
-      newErrors.email_rule_id = 'Email rule is required'
+    if (!formData.email_rule_ids || formData.email_rule_ids.length === 0) {
+      newErrors.email_rule_ids = 'At least one email rule is required'
     }
 
     // Retention policy validation
@@ -176,8 +170,35 @@ export default function FeedForm({ feed, onSubmit, onCancel }: FeedFormProps) {
     }
   }
 
-  const getSelectedRule = () => {
-    return rules.find(r => r.id === formData.email_rule_id)
+  const getSelectedRules = () => {
+    return rules.filter(r => formData.email_rule_ids.includes(r.id))
+  }
+
+  const handleRuleToggle = (ruleId: string) => {
+    setFormData(prev => {
+      const newRuleIds = prev.email_rule_ids.includes(ruleId)
+        ? prev.email_rule_ids.filter(id => id !== ruleId)
+        : [...prev.email_rule_ids, ruleId]
+
+      return { ...prev, email_rule_ids: newRuleIds }
+    })
+
+    // Clear error when user selects a rule
+    if (errors.email_rule_ids) {
+      setErrors(prev => ({ ...prev, email_rule_ids: '' }))
+    }
+  }
+
+  const selectAllRules = () => {
+    const activeRules = rules.filter(r => r.is_active)
+    setFormData(prev => ({ ...prev, email_rule_ids: activeRules.map(r => r.id) }))
+    if (errors.email_rule_ids) {
+      setErrors(prev => ({ ...prev, email_rule_ids: '' }))
+    }
+  }
+
+  const clearAllRules = () => {
+    setFormData(prev => ({ ...prev, email_rule_ids: [] }))
   }
 
   if (rules.length === 0 && !errors.rules) {
@@ -296,40 +317,124 @@ export default function FeedForm({ feed, onSubmit, onCancel }: FeedFormProps) {
           </div>
         </div>
 
-        {/* Email Rule */}
-        <div className="sm:col-span-4">
-          <label htmlFor="email_rule_id" className="block text-sm font-medium text-gray-700">
-            Email Rule
-          </label>
-          <div className="mt-1">
-            <select
-              name="email_rule_id"
-              id="email_rule_id"
-              value={formData.email_rule_id}
-              onChange={handleChange}
-              className={`block w-full shadow-sm sm:text-sm rounded-md ${
-                errors.email_rule_id 
-                  ? 'border-red-300 focus:ring-red-500 focus:border-red-500' 
-                  : 'border-gray-300 focus:ring-primary-500 focus:border-primary-500'
-              }`}
-            >
-              <option value="">Select a rule</option>
-              {rules.map(rule => (
-                <option key={rule.id} value={rule.id}>
-                  {rule.name} {!rule.is_active && '(Inactive)'}
-                </option>
-              ))}
-            </select>
-            {errors.email_rule_id && (
-              <p className="mt-2 text-sm text-red-600">{errors.email_rule_id}</p>
-            )}
-            {getSelectedRule() && (
-              <div className="mt-2 p-2 bg-gray-50 rounded text-xs text-gray-600">
-                <strong>Rule:</strong> {getSelectedRule()?.name}<br />
-                <strong>Folder:</strong> {getSelectedRule()?.folder}
+        {/* Email Rules - Multi-select with checkboxes */}
+        <div className="sm:col-span-6">
+          <div className="flex items-center justify-between mb-2">
+            <label className="block text-sm font-medium text-gray-700">
+              Email Rules
+              <span className="ml-2 text-xs text-gray-500">
+                ({formData.email_rule_ids.length} selected)
+              </span>
+            </label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={selectAllRules}
+                className="text-xs text-primary-600 hover:text-primary-700 font-medium"
+              >
+                Select All Active
+              </button>
+              {formData.email_rule_ids.length > 0 && (
+                <button
+                  type="button"
+                  onClick={clearAllRules}
+                  className="text-xs text-gray-600 hover:text-gray-700 font-medium"
+                >
+                  Clear All
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className={`mt-2 border rounded-lg p-4 max-h-64 overflow-y-auto ${
+            errors.email_rule_ids
+              ? 'border-red-300 bg-red-50'
+              : 'border-gray-300 bg-gray-50'
+          }`}>
+            {rules.length === 0 ? (
+              <p className="text-sm text-gray-500 text-center py-4">No email rules available</p>
+            ) : (
+              <div className="space-y-3">
+                {rules.map(rule => (
+                  <label
+                    key={rule.id}
+                    className={`flex items-start p-3 rounded-lg cursor-pointer transition-colors ${
+                      formData.email_rule_ids.includes(rule.id)
+                        ? 'bg-primary-50 border-2 border-primary-200'
+                        : 'bg-white border-2 border-gray-200 hover:border-gray-300'
+                    } ${!rule.is_active ? 'opacity-60' : ''}`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={formData.email_rule_ids.includes(rule.id)}
+                      onChange={() => handleRuleToggle(rule.id)}
+                      className="mt-1 h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                    />
+                    <div className="ml-3 flex-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-gray-900">
+                          {rule.name}
+                          {!rule.is_active && (
+                            <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-200 text-gray-800">
+                              Inactive
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                      <div className="mt-1 text-xs text-gray-600 space-y-1">
+                        <div className="flex items-center gap-4">
+                          <span className="flex items-center">
+                            <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                            </svg>
+                            {rule.folder}
+                          </span>
+                          {rule.from_address && (
+                            <span className="flex items-center">
+                              <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
+                              </svg>
+                              From: {rule.from_address}
+                            </span>
+                          )}
+                          {rule.subject_contains && (
+                            <span className="flex items-center">
+                              <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+                              </svg>
+                              Subject: "{rule.subject_contains}"
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </label>
+                ))}
               </div>
             )}
           </div>
+
+          {errors.email_rule_ids && (
+            <p className="mt-2 text-sm text-red-600">{errors.email_rule_ids}</p>
+          )}
+
+          {formData.email_rule_ids.length > 0 && (
+            <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex items-start">
+                <svg className="w-5 h-5 text-blue-400 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <div className="ml-3 flex-1">
+                  <p className="text-sm font-medium text-blue-800">
+                    This feed will combine emails from {formData.email_rule_ids.length} rule{formData.email_rule_ids.length !== 1 ? 's' : ''}
+                  </p>
+                  <p className="mt-1 text-xs text-blue-700">
+                    Selected rules: {getSelectedRules().map(r => r.name).join(', ')}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Feed Type */}

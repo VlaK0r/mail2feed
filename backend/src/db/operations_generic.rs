@@ -451,3 +451,72 @@ impl FeedItemOpsGeneric {
         }
     }
 }
+
+pub struct FeedEmailRuleOpsGeneric;
+
+impl FeedEmailRuleOpsGeneric {
+    pub fn create(
+        pool: &DatabasePool,
+        new_relation: &crate::db::models::NewFeedEmailRule,
+    ) -> Result<crate::db::models::FeedEmailRule> {
+        match pool {
+            DatabasePool::SQLite(sqlite_pool) => {
+                let mut conn = sqlite_pool.get()?;
+                crate::db::operations::FeedEmailRuleOps::create(&mut conn, new_relation)
+            }
+            #[cfg(feature = "postgres")]
+            DatabasePool::PostgreSQL(_pg_pool) => {
+                Err(anyhow::anyhow!("PostgreSQL FeedEmailRuleOps not yet implemented"))
+            }
+        }
+    }
+
+    pub fn get_rules_by_feed(
+        pool: &DatabasePool,
+        feed_id: &str,
+    ) -> Result<Vec<crate::db::models::EmailRule>> {
+        match pool {
+            DatabasePool::SQLite(sqlite_pool) => {
+                let mut conn = sqlite_pool.get()?;
+                crate::db::operations::FeedEmailRuleOps::get_rules_by_feed(&mut conn, feed_id)
+            }
+            #[cfg(feature = "postgres")]
+            DatabasePool::PostgreSQL(_pg_pool) => {
+                Err(anyhow::anyhow!("PostgreSQL FeedEmailRuleOps not yet implemented"))
+            }
+        }
+    }
+
+    pub fn delete_by_feed(
+        pool: &DatabasePool,
+        feed_id: &str,
+    ) -> Result<()> {
+        match pool {
+            DatabasePool::SQLite(sqlite_pool) => {
+                let mut conn = sqlite_pool.get()?;
+                crate::db::operations::FeedEmailRuleOps::delete_by_feed(&mut conn, feed_id)
+            }
+            #[cfg(feature = "postgres")]
+            DatabasePool::PostgreSQL(_pg_pool) => {
+                Err(anyhow::anyhow!("PostgreSQL FeedEmailRuleOps not yet implemented"))
+            }
+        }
+    }
+
+    pub fn set_feed_rules(
+        pool: &DatabasePool,
+        feed_id: &str,
+        rule_ids: &[String],
+    ) -> Result<Vec<crate::db::models::EmailRule>> {
+        match pool {
+            DatabasePool::SQLite(sqlite_pool) => {
+                let mut conn = sqlite_pool.get()?;
+                crate::db::operations::FeedEmailRuleOps::set_feed_rules(&mut conn, feed_id, rule_ids)
+            }
+            #[cfg(feature = "postgres")]
+            DatabasePool::PostgreSQL(_pg_pool) => {
+                Err(anyhow::anyhow!("PostgreSQL FeedEmailRuleOps not yet implemented"))
+            }
+        }
+    }
+}

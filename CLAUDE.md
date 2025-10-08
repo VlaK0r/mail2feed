@@ -9,10 +9,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### Key Features
 - Monitors IMAP servers for emails to configurable addresses
 - Supports filtering by tags or labels
-- Converts each mailing list into its own feed
-- Web GUI for managing email rules and feeds
+- **Multiple rules per feed**: Combine emails from multiple email rules into a single feed
+- Web GUI with polished checkbox-based multi-select interface
 - Dual database support: SQLite and PostgreSQL
 - Kubernetes deployment with Helm charts
+- Feed retention policies for automatic cleanup
 
 ## Architecture
 
@@ -50,18 +51,26 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 #### Schema (Both Databases)
 - **imap_accounts**: IMAP server configurations with credentials
 - **email_rules**: Email filtering rules (linked to IMAP accounts)
-- **feeds**: Generated feed configurations (linked to email rules)
+- **feeds**: Generated feed configurations
+- **feed_email_rules**: Junction table for many-to-many relationship between feeds and email rules
 - **feed_items**: Individual feed entries from emails (linked to feeds)
-- **Relationships**: Full cascade delete support with foreign key constraints
+- **Relationships**:
+  - One IMAP account → Many email rules
+  - One feed → Many email rules (many-to-many via junction table)
+  - One feed → Many feed items
+  - Full cascade delete support with foreign key constraints
 
 #### Database Files Structure
 ```
 backend/
 ├── migrations/           # SQLite migrations (Diesel default)
+│   └── 2025-10-08-165801_multiple_rules_per_feed/  # Many-to-many migration
 ├── migrations_postgres/  # PostgreSQL-specific migrations
+│   └── 2025-10-08-165801_multiple_rules_per_feed/  # Many-to-many migration
 ├── src/db/
 │   ├── connection.rs     # Database abstraction layer
-│   ├── operations.rs     # SQLite-specific operations
+│   ├── models.rs         # Includes FeedEmailRule junction table models
+│   ├── operations.rs     # SQLite operations including FeedEmailRuleOps
 │   ├── operations_pg.rs  # PostgreSQL-specific operations
 │   └── operations_generic.rs # Unified database operations
 ```
@@ -242,13 +251,13 @@ mail2feed/
 
 ### Feeds
 - `GET /api/feeds` - List all feeds
-- `POST /api/feeds` - Create new feed
+- `POST /api/feeds` - Create new feed (accepts `email_rule_ids` array)
 - `GET /api/feeds/{id}` - Get feed by ID
-- `PUT /api/feeds/{id}` - Update feed
-- `DELETE /api/feeds/{id}` - Delete feed (cascades to items)
+- `PUT /api/feeds/{id}` - Update feed (accepts `email_rule_ids` array)
+- `DELETE /api/feeds/{id}` - Delete feed (cascades to items and junction table entries)
 - `GET /api/feeds/{id}/items` - Get feed items
-- `GET /feeds/{id}/rss` - RSS feed output
-- `GET /feeds/{id}/atom` - Atom feed output
+- `GET /feeds/{id}/rss` - RSS feed output (combines items from all associated rules)
+- `GET /feeds/{id}/atom` - Atom feed output (combines items from all associated rules)
 
 ### IMAP Operations
 - `GET /api/imap/{id}/test` - Test IMAP connection and list folders

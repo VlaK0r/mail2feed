@@ -19,6 +19,14 @@ diesel::table! {
 }
 
 diesel::table! {
+    feed_email_rules (feed_id, email_rule_id) {
+        feed_id -> Text,
+        email_rule_id -> Text,
+        created_at -> Text,
+    }
+}
+
+diesel::table! {
     feed_items (id) {
         id -> Nullable<Text>,
         feed_id -> Text,
@@ -44,7 +52,6 @@ diesel::table! {
         title -> Text,
         description -> Nullable<Text>,
         link -> Nullable<Text>,
-        email_rule_id -> Text,
         feed_type -> Text,
         is_active -> Bool,
         created_at -> Text,
@@ -72,11 +79,13 @@ diesel::table! {
 }
 
 diesel::joinable!(email_rules -> imap_accounts (imap_account_id));
+diesel::joinable!(feed_email_rules -> email_rules (email_rule_id));
+diesel::joinable!(feed_email_rules -> feeds (feed_id));
 diesel::joinable!(feed_items -> feeds (feed_id));
-diesel::joinable!(feeds -> email_rules (email_rule_id));
 
 diesel::allow_tables_to_appear_in_same_query!(
     email_rules,
+    feed_email_rules,
     feed_items,
     feeds,
     imap_accounts,
