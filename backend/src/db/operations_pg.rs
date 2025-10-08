@@ -239,12 +239,14 @@ pub fn get_feeds_by_rule(
     conn: &mut PgConnection,
     rule_id: &str,
 ) -> Result<Vec<Feed>> {
-    use crate::db::schema::feeds::dsl::*;
+    use crate::db::schema::{feeds, feed_email_rules};
 
-    let rule_feeds = feeds
-        .filter(email_rule_id.eq(rule_id))
-        .load::<Feed>(conn)?;
-    
+    let rule_feeds = feed_email_rules::table
+        .filter(feed_email_rules::email_rule_id.eq(rule_id))
+        .inner_join(feeds::table.on(feed_email_rules::feed_id.eq(feeds::id.assume_not_null())))
+        .select(Feed::as_select())
+        .load(conn)?;
+
     Ok(rule_feeds)
 }
 
@@ -261,7 +263,6 @@ pub fn update_feed(
             title.eq(&updated_feed.title),
             description.eq(&updated_feed.description),
             link.eq(&updated_feed.link),
-            email_rule_id.eq(&updated_feed.email_rule_id),
             feed_type.eq(&updated_feed.feed_type),
             is_active.eq(updated_feed.is_active),
             max_items.eq(updated_feed.max_items),
@@ -270,7 +271,7 @@ pub fn update_feed(
             updated_at.eq(&updated_feed.updated_at),
         ))
         .get_result::<Feed>(conn)?;
-    
+
     Ok(updated)
 }
 
