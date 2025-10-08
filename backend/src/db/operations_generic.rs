@@ -465,8 +465,9 @@ impl FeedEmailRuleOpsGeneric {
                 crate::db::operations::FeedEmailRuleOps::create(&mut conn, new_relation)
             }
             #[cfg(feature = "postgres")]
-            DatabasePool::PostgreSQL(_pg_pool) => {
-                Err(anyhow::anyhow!("PostgreSQL FeedEmailRuleOps not yet implemented"))
+            DatabasePool::PostgreSQL(pg_pool) => {
+                let mut conn = pg_pool.get()?;
+                crate::db::operations_pg::create_feed_email_rule(&mut conn, new_relation)
             }
         }
     }
@@ -481,8 +482,9 @@ impl FeedEmailRuleOpsGeneric {
                 crate::db::operations::FeedEmailRuleOps::get_rules_by_feed(&mut conn, feed_id)
             }
             #[cfg(feature = "postgres")]
-            DatabasePool::PostgreSQL(_pg_pool) => {
-                Err(anyhow::anyhow!("PostgreSQL FeedEmailRuleOps not yet implemented"))
+            DatabasePool::PostgreSQL(pg_pool) => {
+                let mut conn = pg_pool.get()?;
+                crate::db::operations_pg::get_rules_by_feed(&mut conn, feed_id)
             }
         }
     }
@@ -497,8 +499,9 @@ impl FeedEmailRuleOpsGeneric {
                 crate::db::operations::FeedEmailRuleOps::delete_by_feed(&mut conn, feed_id)
             }
             #[cfg(feature = "postgres")]
-            DatabasePool::PostgreSQL(_pg_pool) => {
-                Err(anyhow::anyhow!("PostgreSQL FeedEmailRuleOps not yet implemented"))
+            DatabasePool::PostgreSQL(pg_pool) => {
+                let mut conn = pg_pool.get()?;
+                crate::db::operations_pg::delete_feed_email_rules_by_feed(&mut conn, feed_id)
             }
         }
     }
@@ -514,8 +517,9 @@ impl FeedEmailRuleOpsGeneric {
                 crate::db::operations::FeedEmailRuleOps::set_feed_rules(&mut conn, feed_id, rule_ids)
             }
             #[cfg(feature = "postgres")]
-            DatabasePool::PostgreSQL(_pg_pool) => {
-                Err(anyhow::anyhow!("PostgreSQL FeedEmailRuleOps not yet implemented"))
+            DatabasePool::PostgreSQL(pg_pool) => {
+                let mut conn = pg_pool.get()?;
+                crate::db::operations_pg::set_feed_rules(&mut conn, feed_id, rule_ids)
             }
         }
     }

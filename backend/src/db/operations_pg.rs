@@ -455,3 +455,88 @@ pub fn find_duplicate_items(
     let duplicates = query.load::<FeedItem>(conn)?;
     Ok(duplicates)
 }
+
+// Feed-EmailRule junction table operations
+#[cfg(feature = "postgres")]
+pub fn create_feed_email_rule(
+    conn: &mut PgConnection,
+    new_relation: &crate::db::models::NewFeedEmailRule,
+) -> Result<crate::db::models::FeedEmailRule> {
+    use crate::db::schema::feed_email_rules;
+
+    diesel::insert_into(feed_email_rules::table)
+        .values(new_relation)
+        .execute(conn)
+        .map_err(|e| anyhow::anyhow!("Failed to create feed-rule relation: {}", e))?;
+
+    feed_email_rules::table
+        .filter(feed_email_rules::feed_id.eq(&new_relation.feed_id))
+        .filter(feed_email_rules::email_rule_id.eq(&new_relation.email_rule_id))
+        .first(conn)
+        .map_err(|e| anyhow::anyhow!("Failed to find created feed-rule relation: {}", e))
+}
+
+#[cfg(feature = "postgres")]
+pub fn get_rules_by_feed(
+    conn: &mut PgConnection,
+    feed_id: &str,
+) -> Result<Vec<crate::db::models::EmailRule>> {
+    use crate::db::schema::{feed_email_rules, email_rules};
+
+    feed_email_rules::table
+        .filter(feed_email_rules::feed_id.eq(feed_id))
+        .inner_join(email_rules::table.on(feed_email_rules::email_rule_id.eq(email_rules::id.assume_not_null())))
+        .select(crate::db::models::EmailRule::as_select())
+        .load(conn)
+        .map_err(|e| anyhow::anyhow!("Failed to load rules for feed {}: {}", feed_id, e))
+}
+
+#[cfg(feature = "postgres")]
+pub fn delete_feed_email_rules_by_feed(
+    conn: &mut PgConnection,
+    feed_id: &str,
+) -> Result<()> {
+    use crate::db::schema::feed_email_rules;
+
+    diesel::delete(feed_email_rules::table.filter(feed_email_rules::feed_id.eq(feed_id)))
+        .execute(conn)
+        .map_err(|e| anyhow::anyhow!("Failed to delete feed-rule relations for feed {}: {}", feed_id, e))?;
+    Ok(())
+}
+
+#[cfg(feature = "postgres")]
+pub fn delete_feed_email_rule_by_feed_and_rule(
+    conn: &mut PgConnection,
+    feed_id: &str,
+    rule_id: &str,
+) -> Result<()> {
+    use crate::db::schema::feed_email_rules;
+
+    diesel::delete(
+        feed_email_rules::table
+            .filter(feed_email_rules::feed_id.eq(feed_id))
+            .filter(feed_email_rules::email_rule_id.eq(rule_id))
+    )
+    .execute(conn)
+    .map_err(|e| anyhow::anyhow!("Failed to delete feed-rule relation: {}", e))?;
+    Ok(())
+}
+
+#[cfg(feature = "postgres")]
+pub fn set_feed_rules(
+    conn: &mut PgConnection,
+    feed_id: &str,
+    rule_ids: &[String],
+) -> Result<Vec<crate::db::models::EmailRule>> {
+    // Delete existing rules for this feed
+    delete_feed_email_rules_by_feed(conn, feed_id)?;
+
+    // Insert new rules
+    for rule_id in rule_ids {
+        let new_relation = crate::db::models::NewFeedEmailRule::new(feed_id.to_string(), rule_id.clone());
+        create_feed_email_rule(conn, &new_relation)?;
+    }
+
+    // Return the updated list of rules
+    get_rules_by_feed(conn, feed_id)
+}
