@@ -60,7 +60,7 @@ services:
 
   # Frontend service
   frontend:
-    image: mail2feed-frontend:dev
+    image: ghcr.io/matburt/mail2feed/frontend:latest
     #build:
     #  context: ./frontend
     #  dockerfile: Dockerfile.dev
