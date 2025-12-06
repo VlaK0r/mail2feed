@@ -12,7 +12,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - ./postgres_data:/var/lib/postgresql/data
       - ./init-postgres.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U mail2feed_user -d mail2feed"]
@@ -34,7 +34,7 @@ services:
       postgres:
         condition: service_healthy
     volumes:
-      - pgadmin_data:/var/lib/pgadmin
+      - ./pgadmin_data:/var/lib/pgadmin
 
   # Backend service (when ready for testing)
   backend:
@@ -52,7 +52,7 @@ services:
         condition: service_healthy
     volumes:
       - ./backend:/app
-      - cargo_cache:/usr/local/cargo/registry
+      - ./cargo_cache:/usr/local/cargo/registry
     working_dir: /app
     profiles:
       - backend  # Use docker-compose --profile backend up to include this service
@@ -69,7 +69,7 @@ services:
       - "3002:3002"
     volumes:
       - ./frontend:/app
-      - node_modules_cache:/app/node_modules
+      - ./node_modules_cache:/app/node_modules
     working_dir: /app
     profiles:
       - frontend  # Use docker-compose --profile frontend up to include this service
