@@ -38,9 +38,10 @@ services:
 
   # Backend service (when ready for testing)
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile.dev
+    image: mail2feed-backend:dev
+    #build:
+    #  context: ./backend
+    #  dockerfile: Dockerfile.dev
     container_name: mail2feed-backend
     environment:
       DATABASE_URL: postgres://mail2feed_user:mail2feed_password@postgres:5432/mail2feed
@@ -59,9 +60,10 @@ services:
 
   # Frontend service
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile.dev
+    image: mail2feed-frontend:dev
+    #build:
+    #  context: ./frontend
+    #  dockerfile: Dockerfile.dev
     container_name: mail2feed-frontend
     environment:
       VITE_API_URL: http://localhost:3001
