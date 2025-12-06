@@ -38,7 +38,7 @@ services:
 
   # Backend service (when ready for testing)
   backend:
-    image: mail2feed-backend:dev
+    image: ghcr.io/matburt/mail2feed/backend:latest
     #build:
     #  context: ./backend
     #  dockerfile: Dockerfile.dev
@@ -64,7 +64,7 @@ services:
     #build:
     #  context: ./frontend
     #  dockerfile: Dockerfile.dev
-    container_name: mail2feed-frontend
+    container_name: ghcr.io/matburt/mail2feed/frontend:latest
     environment:
       VITE_API_URL: http://localhost:3001
     ports:
